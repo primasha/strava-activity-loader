@@ -55,9 +55,10 @@ namespace StravaActivitiesLoader
 
         public void ProcessActivity(ActivitySummary actSummary)
         {
-            Directory.CreateDirectory(_rootFolder);
+            var outputDir = Path.Combine(_rootFolder, actSummary.DateTimeStart.Year.ToString());
+            Directory.CreateDirectory(outputDir);
 
-            var fileName = Path.Combine(_rootFolder, $"{GetFileName(actSummary.Name)}_{actSummary.Id}.gpx");
+            var fileName = Path.Combine(outputDir, $"{GetFileName(actSummary.Name)}_{actSummary.Id}.gpx");
             if (File.Exists(fileName))
                 return;
 
