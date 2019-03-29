@@ -1,13 +1,15 @@
-﻿using System;
+﻿using Strava.Streams;
+using System;
 using System.IO;
 
 namespace StravaActivitiesLoader
 {
     class StravaCache
     {
-        public StravaCache(string root)
+        public StravaCache(string root, StreamResolution streamResolution)
         {
             Root = root;
+            StreamResolution = streamResolution;
             try
             {
                 var info = File.ReadAllText(Path.Combine(Root, "info.txt"));
@@ -28,5 +30,6 @@ namespace StravaActivitiesLoader
 
         public DateTime LastPollDate { get; private set; }
         public string Root { get; private set; }
+        public StreamResolution StreamResolution { get; private set; }
     }
 }

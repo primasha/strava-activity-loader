@@ -3,69 +3,93 @@ using Strava.Clients;
 using System;
 using Strava.Streams;
 using System.Collections.Generic;
+using CommandLine;
+using System.Linq;
 
 namespace StravaActivitiesLoader
 {
-    class Program
+    public class Program
     {
+        public class Options
+        {
+            [Option(Default = new string[] {"All", "High", "Medium", "Low" }, Separator = ' ')]
+            public IEnumerable<string> Streams { get; set; }
+        }
+
         static void Main(string[] args)
         {
-            try
-            {
-                Console.OutputEncoding = System.Text.Encoding.UTF8;
-
-                var auth = new StravaAuthentication().PerformAuthentication();
-                Console.WriteLine($"Token: {auth.AccessToken}");
-                var client = new StravaClient(auth);
-                var athlete = client.Athletes.GetAthlete();
-                Console.WriteLine($"{athlete.FirstName} {athlete.LastName}");
-
-                int n = 0;
-                client.Activities.ActivityReceived += delegate (object sender, ActivityReceivedEventArgs ea)
+            Parser.Default.ParseArguments<Options>(args).
+                WithParsed(o =>
                 {
-                    ++n;
-                    Console.SetCursorPosition(0, 2);
-                    Console.WriteLine($"Found {n,5} activities...");
-                };
+                    Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-                var streamResolution = StreamResolution.All;
-                var cache = new StravaCache($"{athlete.LastName}_{athlete.Id}/{streamResolution}");
-                var allActivities = new List<ActivitySummary>();
-                var pollDate = DateTime.UtcNow;
-                if (cache.LastPollDate == default(DateTime))
-                {
-                    allActivities = client.Activities.GetAllActivities();
-                }
-                else
-                {
-                    allActivities = client.Activities.GetActivitiesAfter(cache.LastPollDate);
-                }
+                    var auth = new StravaAuthentication().PerformAuthentication();
+                    Console.WriteLine($"Token: {auth.AccessToken}");
+                    var client = new StravaClient(auth);
+                    var athlete = client.Athletes.GetAthlete();
+                    Console.WriteLine($"{athlete.FirstName} {athlete.LastName}");
 
-                Console.SetCursorPosition(0, 2);
-                Console.WriteLine($"There are {allActivities.Count,5} activities");
-
-                var publisher = new ActivityPublisher(client, cache.Root, streamResolution);
-
-                for (int i = 0; i < allActivities.Count; ++i)
-                {
-                    var a = allActivities[i];
-                    Console.Write($"{i} {a.Name}");
-                    if (a.IsTrainer || a.IsManual)
+                    foreach (var r in o.Streams)
                     {
-                        Console.WriteLine(" skipped");
-                        continue;
+                        if (Enum.TryParse(r, true, out StreamResolution streamResolution))
+                        {
+                            Console.WriteLine($"Syncing [{streamResolution}]");
+                            var cache = new StravaCache($"{athlete.LastName}_{athlete.Id}/{streamResolution}", streamResolution);
+
+                            SyncStravaCache(client, cache);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Unknown stream resolution [{r}]");
+                        }
                     }
-                    Console.WriteLine("");
+                });
+        }
 
-                    publisher.ProcessActivity(a);
-                }
-
-                cache.UpdateLastPollDate(pollDate);
-            }
-            catch(Exception ex)
+        private static void SyncStravaCache(StravaClient client, StravaCache cache)
+        {
+            var allActivities = new List<ActivitySummary>();
+            var pollDate = DateTime.UtcNow;
+            int n = 0;
+            EventHandler<ActivityReceivedEventArgs> OnActivityRecieved = delegate(object sender, ActivityReceivedEventArgs ea)
             {
-                Console.WriteLine(ex);
+                ++n;
+                Console.SetCursorPosition(0, Console.CursorTop);
+                Console.WriteLine($"Found {n,5} activities...");
+            };
+
+            client.Activities.ActivityReceived += OnActivityRecieved;
+
+            if (cache.LastPollDate == default(DateTime))
+            {
+                allActivities = client.Activities.GetAllActivities();
             }
+            else
+            {
+                allActivities = client.Activities.GetActivitiesAfter(cache.LastPollDate);
+            }
+            client.Activities.ActivityReceived -= OnActivityRecieved;
+
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.WriteLine($"There are {allActivities.Count,5} activities");
+
+            var publisher = new ActivityPublisher(client, cache.Root, cache.StreamResolution);
+
+            for (int i = 0; i < allActivities.Count; ++i)
+            {
+                var a = allActivities[i];
+                Console.Write($"{i} {a.Name}");
+                if (a.IsTrainer || a.IsManual)
+                {
+                    Console.WriteLine(" skipped");
+                    continue;
+                }
+                Console.WriteLine("");
+
+                publisher.ProcessActivity(a);
+            }
+
+            cache.UpdateLastPollDate(pollDate);
         }
     }
 }
