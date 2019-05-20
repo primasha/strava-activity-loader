@@ -7,9 +7,6 @@ namespace StravaActivitiesLoader
 {
     class StravaAuthentication : WebAuthentication
     {
-        static private string ClientId = "2774";
-        static private string ClientSecret = "4693316dc7b6ad7e4095cf25b45d13fa2459bd77";
-
         private ManualResetEventSlim _authCodeReceivedEvent = new ManualResetEventSlim(false);
         private ManualResetEventSlim _accesTokenReceivedEvent = new ManualResetEventSlim(false);
 
@@ -44,7 +41,9 @@ namespace StravaActivitiesLoader
                 _authCodeReceivedEvent.Reset();
                 _accesTokenReceivedEvent.Reset();
 
-                GetTokenAsync(ClientId, ClientSecret, Scope.Full);
+                var lines = File.ReadAllLines($"strava.client.secret.token");
+                // ClientId, ClientSecret
+                GetTokenAsync(lines[0], lines[1], Scope.Full);
 
                 WaitHandle.WaitAll(new[] { _accesTokenReceivedEvent.WaitHandle, _authCodeReceivedEvent.WaitHandle });
 
