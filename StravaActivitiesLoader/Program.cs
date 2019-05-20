@@ -18,32 +18,39 @@ namespace StravaActivitiesLoader
 
         static void Main(string[] args)
         {
-            Parser.Default.ParseArguments<Options>(args).
-                WithParsed(o =>
-                {
-                    Console.OutputEncoding = System.Text.Encoding.UTF8;
-
-                    var auth = new StravaAuthentication().PerformAuthentication();
-                    Console.WriteLine($"Token: {auth.AccessToken}");
-                    var client = new StravaClient(auth);
-                    var athlete = client.Athletes.GetAthlete();
-                    Console.WriteLine($"{athlete.FirstName} {athlete.LastName}");
-
-                    foreach (var r in o.Streams)
+            try
+            {
+                Parser.Default.ParseArguments<Options>(args).
+                    WithParsed(o =>
                     {
-                        if (Enum.TryParse(r, true, out StreamResolution streamResolution))
-                        {
-                            Console.WriteLine($"Syncing [{streamResolution}]");
-                            var cache = new StravaCache($"{athlete.LastName}_{athlete.Id}/{streamResolution}", streamResolution);
+                        Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-                            SyncStravaCache(client, cache);
-                        }
-                        else
+                        var auth = new StravaAuthentication().PerformAuthentication();
+                        Console.WriteLine($"Token: {auth.AccessToken}");
+                        var client = new StravaClient(auth);
+                        var athlete = client.Athletes.GetAthlete();
+                        Console.WriteLine($"{athlete.FirstName} {athlete.LastName}");
+
+                        foreach (var r in o.Streams)
                         {
-                            Console.WriteLine($"Unknown stream resolution [{r}]");
+                            if (Enum.TryParse(r, true, out StreamResolution streamResolution))
+                            {
+                                Console.WriteLine($"Syncing [{streamResolution}]");
+                                var cache = new StravaCache($"{athlete.LastName}_{athlete.Id}/{streamResolution}", streamResolution);
+
+                                SyncStravaCache(client, cache);
+                            }
+                            else
+                            {
+                                Console.WriteLine($"Unknown stream resolution [{r}]");
+                            }
                         }
-                    }
-                });
+                    });
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private static void SyncStravaCache(StravaClient client, StravaCache cache)
@@ -54,8 +61,8 @@ namespace StravaActivitiesLoader
             EventHandler<ActivityReceivedEventArgs> OnActivityRecieved = delegate(object sender, ActivityReceivedEventArgs ea)
             {
                 ++n;
-                Console.SetCursorPosition(0, Console.CursorTop);
                 Console.WriteLine($"Found {n,5} activities...");
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
             };
 
             client.Activities.ActivityReceived += OnActivityRecieved;
@@ -70,8 +77,7 @@ namespace StravaActivitiesLoader
             }
             client.Activities.ActivityReceived -= OnActivityRecieved;
 
-            Console.SetCursorPosition(0, Console.CursorTop);
-            Console.WriteLine($"There are {allActivities.Count,5} activities");
+            Console.WriteLine($"\nThere are {allActivities.Count,5} activities");
 
             var publisher = new ActivityPublisher(client, cache.Root, cache.StreamResolution);
 
